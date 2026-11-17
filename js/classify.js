@@ -36,7 +36,8 @@ export function classify(rec) {
   const clinicalType = has(types, /clinical trial|randomized|controlled trial|observational|cohort|case-control|case reports?/);
 
   // Laboratorio/animali senza indicatori di arruolamento di persone: ha la precedenza sui rami clinici generici.
-  const preclinicalOnly = (animal || vitro) && !clinicalType && !enrolledHumans;
+  const preclinicalSynthesis = has(text, /\b(animal|preclinical|in vitro|rodent)\s+(studies|models|experiments)\b/);
+  const preclinicalOnly = (animal || vitro || preclinicalSynthesis) && !clinicalType && !enrolledHumans;
 
   // Numero di partecipanti: solo se seguito da un'unità di persone (evita "follow-up of 5 years").
   const sampleMatch =
@@ -49,11 +50,11 @@ export function classify(rec) {
     flags.push('Preprint non revisionato');
   }
 
-  if (has(types, /meta-analysis/) || has(text, /\bmeta-analys[ie]s\b/)) {
+  if ((has(types, /meta-analysis/) && !preclinicalSynthesis) || (!preclinicalOnly && has(text, /\bmeta-analys[ie]s\b/))) {
     design = 'Meta-analisi';
     level = 'consolidata';
     reasons.push('Meta-analisi');
-  } else if (has(types, /systematic review/) || has(text, /\bsystematic review\b/)) {
+  } else if ((has(types, /systematic review/) && !preclinicalSynthesis) || (!preclinicalOnly && has(text, /\bsystematic review\b/))) {
     design = 'Revisione sistematica';
     level = 'clinica_significativa';
     reasons.push('Revisione sistematica');
@@ -61,14 +62,14 @@ export function classify(rec) {
     design = 'Linee guida';
     level = 'consolidata';
     reasons.push('Linee guida / consenso di esperti');
-  } else if (has(types, /randomized controlled trial/) || has(text, /\brandomi[sz]ed\b.*\b(trial|study)\b/)) {
+  } else if (has(types, /randomized controlled trial/) || (!preclinicalOnly && has(text, /\brandomi[sz]ed\b.*\b(trial|study)\b/))) {
     design = phaseNum ? `Studio clinico randomizzato di fase ${roman(phaseNum)}` : 'Studio clinico randomizzato';
     // Senza fase dichiarata si considera "significativa" solo con un campione ampio (≥100 persone).
     const solid = phaseNum ? phaseNum >= 3 : sample !== null && sample >= 100;
     level = solid ? 'clinica_significativa' : 'clinica_preliminare';
     reasons.push('Studio randomizzato' + (phaseNum ? `, fase ${roman(phaseNum)}` : solid ? `, campione ≥100 (${sample})` : ', fase e dimensione del campione non verificabili'));
   } else if (preclinicalOnly) {
-    design = animal ? 'Studio su modello animale' : 'Studio in vitro';
+    design = animal ? 'Studio su modello animale' : vitro ? 'Studio in vitro' : 'Sintesi di studi preclinici';
     level = 'preclinica';
     reasons.push(animal ? 'Modelli animali' : 'Colture cellulari/laboratorio');
     flags.push('Non trasferibile automaticamente all’essere umano');

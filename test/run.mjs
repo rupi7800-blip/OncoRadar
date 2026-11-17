@@ -218,3 +218,16 @@ test('dedupe: se una fonte lo segnala preprint, resta preprint', () => {
   ]);
   assert.equal(out[0].isPreprint, true);
 });
+
+test('classify: "mice were randomized ... in this study" resta preclinico', () => {
+  const c = classify(rec({ abstract: 'Tumor-bearing mice were randomized into groups. In this study, treatment reduced xenograft growth.' }));
+  assert.equal(c.level, 'preclinica');
+  assert.match(c.design, /animale/);
+});
+
+test('classify: meta-analisi/revisione sistematica di studi su animali → preclinica', () => {
+  assert.equal(classify(rec({ title: 'Meta-analysis of animal studies of drug X', abstract: 'We performed a meta-analysis of animal studies.' })).level, 'preclinica');
+  assert.equal(classify(rec({ pubTypes: ['Systematic Review'], abstract: 'A systematic review of preclinical studies.' })).level, 'preclinica');
+  // una vera meta-analisi di studi sull'uomo resta consolidata
+  assert.equal(classify(rec({ pubTypes: ['Meta-Analysis'], abstract: 'Pooled analysis of randomized trials in patients.' })).level, 'consolidata');
+});
