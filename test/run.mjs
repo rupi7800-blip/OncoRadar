@@ -159,3 +159,75 @@ test('searchAll: una fonte che fallisce non blocca le altre e viene segnalata', 
 test('LEVELS: tutte le classi richieste esistono', () => {
   for (const k of ['consolidata', 'clinica_significativa', 'clinica_preliminare', 'preclinica', 'ipotesi', 'insufficiente', 'contraddittori']) assert.ok(LEVELS[k]);
 });
+
+// ---- Regressioni segnalate dall'audit ----
+
+test('classify: "follow-up of 5 years" non è un campione', () => {
+  const c = classify(rec({ abstract: 'Median follow-up of 5 years in a retrospective cohort.' }));
+  assert.equal(c.sample, null);
+  assert.equal(classify(rec({ abstract: 'We enrolled 1,200 patients in a cohort.' })).sample, 1200);
+  assert.equal(classify(rec({ abstract: 'Randomized trial, n = 85.' })).sample, 85);
+});
+
+test('classify: RCT senza fase né campione ampio non è "significativa"', () => {
+  assert.equal(classify(rec({ pubTypes: ['Randomized Controlled Trial'], abstract: 'A small randomized trial.' })).level, 'clinica_preliminare');
+  assert.equal(classify(rec({ pubTypes: ['Randomized Controlled Trial'], abstract: 'Randomized trial of 450 patients.' })).level, 'clinica_significativa');
+});
+
+test('runScan: una fonte che fallisce solo su un argomento resta operativa; analyzed conta documenti unici', async () => {
+  const { runScan: scan } = await import('../js/radar.js');
+  let call = 0;
+  const flaky = async () => { call++; if (call === 1) throw new Error('HTTP 500'); return [{ title: 'Doc', doi: '10.5/dup', abstract: 'a', pubTypes: [], sourceName: 'S' }]; };
+  const { scan: s } = await scan(['t1', 't2', 't3'], { connectors: [{ id: 'pubmed', fn: flaky }] });
+  assert.equal(s.sourcesChecked, 1);
+  assert.deepEqual(s.sourcesDown, []);
+  assert.equal(s.analyzed, 1); // lo stesso documento trovato in 2 argomenti conta una volta
+});
+
+// ---- Regressioni dalla revisione finale ----
+test('classify: "phase II enzymes" in cell lines è preclinico, non fase II', () => {
+  const c = classify(rec({ title: 'Sulforaphane induces phase II detoxifying enzymes in cell lines', abstract: 'In vitro, sulforaphane induces phase II detoxifying enzymes in cultured cells.' }));
+  assert.equal(c.level, 'preclinica');
+  assert.doesNotMatch(c.design, /fase/);
+});
+
+test('classify: "cohort of mice" è animale, non osservazionale', () => {
+  const c = classify(rec({ abstract: 'A cohort of mice bearing xenograft tumors was treated.' }));
+  assert.equal(c.level, 'preclinica');
+  assert.match(c.design, /animale/);
+});
+
+test('classify: una vera fase II con pazienti resta clinica', () => {
+  const c = classify(rec({ title: 'A phase II trial of X', abstract: 'In this phase II trial, patients were enrolled.' }));
+  assert.match(c.design, /fase II/);
+  assert.equal(c.level, 'clinica_preliminare');
+});
+
+test('PubMed: il tipo "Preprint" viene riconosciuto', async () => {
+  const f = mockFetch([
+    ['esearch', { esearchresult: { idlist: ['7'] } }],
+    ['esummary', { result: { 7: { uid: '7', title: 'NIH preprint', authors: [], pubtype: ['Preprint'], pubdate: '2026' } } }],
+  ]);
+  assert.equal((await searchPubMed('x', { fetchImpl: f }))[0].isPreprint, true);
+});
+
+test('dedupe: se una fonte lo segnala preprint, resta preprint', () => {
+  const out = dedupe([
+    { title: 'P', doi: '10.7/pp', isPreprint: false, sourceName: 'PubMed' },
+    { title: 'P', doi: '10.7/pp', isPreprint: true, sourceName: 'Europe PMC' },
+  ]);
+  assert.equal(out[0].isPreprint, true);
+});
+
+test('classify: "mice were randomized ... in this study" resta preclinico', () => {
+  const c = classify(rec({ abstract: 'Tumor-bearing mice were randomized into groups. In this study, treatment reduced xenograft growth.' }));
+  assert.equal(c.level, 'preclinica');
+  assert.match(c.design, /animale/);
+});
+
+test('classify: meta-analisi/revisione sistematica di studi su animali → preclinica', () => {
+  assert.equal(classify(rec({ title: 'Meta-analysis of animal studies of drug X', abstract: 'We performed a meta-analysis of animal studies.' })).level, 'preclinica');
+  assert.equal(classify(rec({ pubTypes: ['Systematic Review'], abstract: 'A systematic review of preclinical studies.' })).level, 'preclinica');
+  // una vera meta-analisi di studi sull'uomo resta consolidata
+  assert.equal(classify(rec({ pubTypes: ['Meta-Analysis'], abstract: 'Pooled analysis of randomized trials in patients.' })).level, 'consolidata');
+});

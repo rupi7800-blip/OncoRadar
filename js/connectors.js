@@ -45,6 +45,7 @@ export async function searchPubMed(query, { limit = 20, oncology = true, ...o } 
         pmid: String(r.uid || id),
         url: `https://pubmed.ncbi.nlm.nih.gov/${r.uid || id}/`,
         pubTypes: r.pubtype || [],
+        isPreprint: (r.pubtype || []).some((t) => /preprint/i.test(t)),
       };
     });
 }

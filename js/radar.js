@@ -29,7 +29,7 @@ export function dedupe(records) {
     keep.authors = keep.authors?.length ? keep.authors : prev.authors;
     keep.affiliations = keep.affiliations?.length ? keep.affiliations : prev.affiliations?.length ? prev.affiliations : r.affiliations;
     keep.pubTypes = [...new Set([...(prev.pubTypes || []), ...(r.pubTypes || [])])];
-    keep.isPreprint = prev.isPreprint && r.isPreprint;
+    keep.isPreprint = Boolean(prev.isPreprint || r.isPreprint); // prudenza: se una fonte lo dà come preprint, resta segnalato
     keep.funding = [...new Set([...(prev.funding || []), ...(r.funding || [])])];
     map.set(key, keep);
   }
@@ -63,20 +63,19 @@ export async function searchAll(query, opts = {}) {
 export async function runScan(topics, opts = {}) {
   const archive = loadArchive();
   const seenBefore = new Set(Object.keys(archive));
-  const statuses = {};
+  const tally = {}; // per fonte: argomenti riusciti / falliti
   const newByTopic = {};
-  let analyzed = 0;
+  const uniqueSeen = new Set();
   let newCount = 0;
 
   for (const topic of topics) {
     const { records, statuses: st } = await searchAll(topic, { limit: 15, ...opts });
     for (const [id, s] of Object.entries(st)) {
-      const prev = statuses[id];
-      if (!prev || (prev.status === 'ok' && s.status === 'errore')) statuses[id] = s;
-      if (prev?.status === 'ok' && s.status === 'ok') statuses[id] = { ...s, count: prev.count + s.count };
+      const t = (tally[id] ||= { ok: 0, errors: 0, count: 0 });
+      if (s.status === 'ok') { t.ok++; t.count += s.count; } else { t.errors++; t.lastError = s.error; }
     }
     for (const r of records) {
-      analyzed++;
+      uniqueSeen.add(r.key);
       if (!archive[r.key]) {
         archive[r.key] = { ...r, abstract: (r.abstract || '').slice(0, 1500), firstSeen: Date.now(), topic };
         if (!seenBefore.has(r.key)) {
@@ -88,13 +87,20 @@ export async function runScan(topics, opts = {}) {
   }
 
   saveArchive(archive);
-  const entries = Object.values(statuses);
+  // Una fonte è "operativa" se ha risposto ad almeno un argomento; "non disponibile" solo se ha sempre fallito.
+  const now = Date.now();
+  const statuses = {};
+  for (const [id, t] of Object.entries(tally)) {
+    statuses[id] = t.ok > 0
+      ? { status: 'ok', count: t.count, at: now, partialErrors: t.errors }
+      : { status: 'errore', error: t.lastError, at: now };
+  }
   const scan = {
-    at: Date.now(),
-    sourcesChecked: entries.filter((s) => s.status === 'ok').length,
+    at: now,
+    sourcesChecked: Object.values(statuses).filter((s) => s.status === 'ok').length,
     sourcesDown: Object.entries(statuses).filter(([, s]) => s.status === 'errore').map(([id, s]) => ({ id, error: s.error })),
     newCount,
-    analyzed,
+    analyzed: uniqueSeen.size,
     topics,
   };
   store.set('lastScan', scan);

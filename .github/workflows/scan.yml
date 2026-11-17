@@ -1,0 +1,37 @@
+name: Scansione giornaliera
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: oncoradar-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test
+        run: npm test
+      - name: Scansione fonti scientifiche
+        run: node scripts/scan.mjs
+      - name: Salva il feed
+        run: |
+          if [ -n "$(git status --porcelain data/radar.json)" ]; then
+            git config user.name "oncoradar-bot"
+            git config user.email "oncoradar-bot@users.noreply.github.com"
+            git add data/radar.json
+            git commit -m "Aggiornamento feed giornaliero"
+            git push
+          else
+            echo "Nessuna modifica al feed."
+          fi

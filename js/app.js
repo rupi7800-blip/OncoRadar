@@ -4,6 +4,9 @@ import { searchAll, runScan, DEFAULT_TOPICS } from './radar.js';
 import { LEVELS, compare, summarize } from './classify.js';
 import { store, loadArchive, saveArchive } from './store.js';
 import { DISCLAIMER, STUDY, ATLAS, THERAPIES, INTEGRATIVE, INTEGRATIVE_WARNINGS, GLOSSARY } from './content.js';
+import { ATLAS_DETAIL, EPI_LINKS } from './atlas-data.js';
+import { importFeed } from './feed.js';
+import { classify } from './classify.js';
 
 const $ = (s) => document.querySelector(s);
 const view = $('#view');
@@ -12,11 +15,12 @@ const safeUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '#');
 const fmtDate = (t) => (t ? new Date(t).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
 let mode = store.get('mode', 'simple'); // 'simple' | 'scientific'
+const loadArch = () => { const a = loadArchive(); for (const r of Object.values(a)) r.cls = classify(r); return a; };
 const cache = new Map(); // key -> record, per i preferiti
 
 const NAV = [
   ['home', 'Home Radar'], ['study', 'Studio della malattia'], ['atlas', 'Atlante dei tumori'], ['therapies', 'Terapie e cure'],
-  ['integrative', 'Medicina integrata'], ['discoveries', 'Nuove scoperte'], ['trials', 'Studi clinici'], ['search', 'Ricerca AI'],
+  ['integrative', 'Medicina integrata'], ['discoveries', 'Nuove scoperte'], ['trials', 'Studi clinici'], ['search', 'Ricerca avanzata'],
   ['archive', 'Archivio scientifico'], ['watch', 'Preferiti e monitoraggio'], ['sources', 'Fonti'],
 ];
 
@@ -39,6 +43,7 @@ function notDemonstrated(r) {
 }
 
 function recCard(r) {
+  r.cls = classify(r); // riclassifica sempre: record salvati con regole precedenti restano corretti
   cache.set(r.key, r);
   const favs = store.get('favs', {});
   const c = r.cls;
@@ -102,8 +107,8 @@ async function searchInto(el, query, opts = {}) {
 
 function trialCard(t) {
   return `<article class="card rec"><h3><a href="${esc(safeUrl(t.url))}" target="_blank" rel="noopener noreferrer">${esc(t.title)}</a></h3>
-    <div><span class="badge">${esc(t.id)}</span><span class="badge">${esc(t.phases.join('/').replace(/PHASE/g, 'Fase ') || 'Fase n.d.')}</span><span class="badge">${esc(t.status)}</span>${t.hasResults ? '<span class="badge l5">Risultati pubblicati</span>' : ''}</div>
-    <p class="mute">Sponsor: ${esc(t.sponsor || t.organization || 'n.d.')} · Partecipanti previsti: ${t.enrollment ?? 'n.d.'} · Inizio: ${esc(t.startDate || 'n.d.')} · Ultimo aggiornamento: ${esc(t.lastUpdate || 'n.d.')}</p>
+    <div><span class="badge">${esc(t.id)}</span><span class="badge">${esc(t.phases.join('/').replace(/PHASE/g, 'Fase ') || 'Fase n.d.')}</span><span class="badge">${esc(t.status)}</span>${t.hasResults ? '<span class="badge">Risultati pubblicati nel registro</span>' : ''}</div>
+    <p class="mute">Sponsor: ${esc(t.sponsor || t.organization || 'n.d.')} · Partecipanti previsti: ${esc(t.enrollment ?? 'n.d.')} · Inizio: ${esc(t.startDate || 'n.d.')} · Ultimo aggiornamento: ${esc(t.lastUpdate || 'n.d.')}</p>
     <p class="mute">Paesi: ${esc(t.countries.slice(0, 8).join(', ') || 'n.d.')}${t.countries.length > 8 ? '…' : ''}</p>
     <details ${mode === 'scientific' ? 'open' : ''}><summary>Dettagli</summary>
       <p><b>Condizioni:</b> ${esc(t.conditions.join(', ') || 'n.d.')}</p><p><b>Trattamento studiato:</b> ${esc(t.interventions.join(', ') || 'n.d.')}</p>
@@ -128,15 +133,15 @@ const searchForm = (action, value = '', extra = '') => `<form class="row" data-f
 const views = {
   async home() {
     const scan = store.get('lastScan');
-    const arch = Object.values(loadArchive()).sort((a, b) => b.firstSeen - a.firstSeen);
+    const arch = Object.values(loadArch()).sort((a, b) => b.firstSeen - a.firstSeen);
     const down = scan?.sourcesDown || [];
     view.innerHTML = `<h1>Home Radar</h1>
       <div class="stats">
         <div class="stat"><span class="mute">Ultima scansione</span><b style="font-size:1rem">${fmtDate(scan?.at)}</b></div>
-        <div class="stat"><span class="mute">Fonti controllate (ok)</span><b>${scan ? scan.sourcesChecked : '—'}</b></div>
-        <div class="stat"><span class="mute">Nuove pubblicazioni</span><b>${scan ? scan.newCount : '—'}</b></div>
-        <div class="stat"><span class="mute">Documenti analizzati</span><b>${scan ? scan.analyzed : '—'}</b></div>
-        <div class="stat"><span class="mute">Fonti non disponibili</span><b>${scan ? down.length : '—'}</b></div>
+        <div class="stat"><span class="mute">Fonti controllate (ok)</span><b>${scan ? esc(scan.sourcesChecked) : '—'}</b></div>
+        <div class="stat"><span class="mute">Nuove pubblicazioni</span><b>${scan ? esc(scan.newCount) : '—'}</b></div>
+        <div class="stat"><span class="mute">Documenti analizzati</span><b>${scan ? esc(scan.analyzed) : '—'}</b></div>
+        <div class="stat"><span class="mute">Fonti non disponibili</span><b>${scan ? esc(down.length) : '—'}</b></div>
       </div>
       <p class="mute">Valori reali registrati dall’ultima scansione${scan ? ` (argomenti: ${esc(scan.topics.join(', '))})` : ' — nessuna scansione ancora eseguita'}. ${down.length ? 'Non raggiungibili: ' + esc(down.map((d) => d.id).join(', ')) : ''}</p>
       <div class="row"><button class="primary" id="scanBtn">Aggiorna radar ora</button><span id="scanMsg" class="mute"></span></div>
@@ -171,9 +176,15 @@ const views = {
     if (id) {
       const t = ATLAS.find((a) => a[0] === id);
       if (!t) return notFound();
+      const d = ATLAS_DETAIL[id];
+      const ul = (a) => `<ul>${a.map((x) => `<li>${gloss(x)}</li>`).join('')}</ul>`;
       view.innerHTML = `<p><a href="#/atlas">← Atlante</a></p><h1>${esc(t[1])}</h1><div class="card"><p>${esc(t[2])}</p>
-        <p class="note">Sottotipi, fattori di rischio, stadiazione, biomarcatori e trattamenti standard di questa scheda saranno compilati dalle linee guida (NCI, ESMO, AIOM) nella fase di studio. Fino ad allora consulta le fonti sotto, che sono aggiornate in tempo reale.</p>
-        <p class="mute">Linee guida e dati ufficiali: <a href="https://www.cancer.gov/" target="_blank" rel="noopener noreferrer">NCI</a> · <a href="https://www.esmo.org/guidelines" target="_blank" rel="noopener noreferrer">ESMO</a> · <a href="https://www.aiom.it/linee-guida-aiom/" target="_blank" rel="noopener noreferrer">AIOM</a> · <a href="https://www.aifa.gov.it/" target="_blank" rel="noopener noreferrer">AIFA</a></p></div>
+        ${d ? `<h2>Organo e tessuti</h2><p>${esc(d.tissue)}</p><h2>Tipologie e sottotipi</h2>${ul(d.subtypes)}<h2>Fattori di rischio noti</h2>${ul(d.risk)}
+        <h2>Biomarcatori e alterazioni associate</h2>${ul(d.bio)}<h2>Diagnosi</h2><p>${gloss(d.dx)}</p><h2>Stadiazione</h2><p>${esc(d.staging)}</p>
+        <h2>Modalità di trattamento (in generale)</h2>${ul(d.tx)}
+        <p class="note">Scheda di orientamento a scopo educativo. La scelta del trattamento dipende da stadio, caratteristiche biologiche e condizioni del paziente: la decide l’équipe oncologica secondo le linee guida aggiornate. Terapie approvate e sperimentali sono distinte nella sezione “Terapie e cure”.</p>` : ''}
+        <h2>Epidemiologia e prognosi</h2><p class="mute">I dati cambiano nel tempo e per sottogruppo: consulta le fonti aggiornate. ${EPI_LINKS.map(([n, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(n)}</a>`).join(' · ')}</p>
+        <p class="mute">Linee guida: <a href="https://www.cancer.gov/" target="_blank" rel="noopener noreferrer">NCI</a> · <a href="https://www.esmo.org/guidelines" target="_blank" rel="noopener noreferrer">ESMO</a> · <a href="https://www.aiom.it/linee-guida-aiom/" target="_blank" rel="noopener noreferrer">AIOM</a> · <a href="https://www.aifa.gov.it/" target="_blank" rel="noopener noreferrer">AIFA</a></p></div>
         <h2>Ricerca recente</h2><div id="r1"></div>
         <h2>Revisioni sistematiche e meta-analisi</h2><div id="r2"></div>
         <h2>Studi clinici (ClinicalTrials.gov)</h2><div id="r3"></div>`;
@@ -208,12 +219,13 @@ const views = {
       view.innerHTML = `<p><a href="#/integrative">← Medicina integrata</a></p><h1>${esc(it[1])}</h1>${warn}
         <p class="mute">Per ogni voce OncoRadar mostra cosa è stato realmente studiato. Dosi, biodisponibilità, tossicità e interazioni vanno letti nei singoli studi (modalità scientifica) e discussi con l’oncologo.</p>
         <h2>Cosa dice la letteratura</h2><div id="res"></div>`;
-      searchInto($('#res'), it[2], { limit: 20 }).then((r) => {
-        if (!r) return;
+      const resEl = $('#res');
+      searchInto(resEl, it[2], { limit: 20 }).then((r) => {
+        if (!r || !resEl.isConnected) return; // l'utente può aver cambiato pagina nel frattempo
         const pre = r.records.filter((x) => x.cls.preclinical).length;
         const clin = r.records.filter((x) => LEVELS[x.cls.level].rank >= LEVELS.clinica_preliminare.rank).length;
-        $('#res').insertAdjacentHTML('afterbegin', `<p class="okbox">Tra i ${r.records.length} documenti più recenti: <b>${clin}</b> con dati sull’uomo (di qualunque solidità), <b>${pre}</b> solo preclinici. ${clin === 0 ? 'Nessuna evidenza sull’uomo emersa in questa ricerca: non significa che l’effetto sia escluso, ma non è dimostrato.' : ''}</p>`);
-      });
+        resEl.insertAdjacentHTML('afterbegin', `<p class="okbox">Tra i ${r.records.length} documenti più recenti: <b>${clin}</b> con dati sull’uomo (di qualunque solidità), <b>${pre}</b> solo preclinici. ${clin === 0 ? 'Nessuna evidenza sull’uomo emersa in questa ricerca: non significa che l’effetto sia escluso, ma non è dimostrato.' : ''}</p>`);
+      }).catch(() => {});
       return;
     }
     view.innerHTML = `<h1>Medicina integrata</h1>${warn}` + INTEGRATIVE.map((g) => `<h2>${g.group}</h2><div class="grid">${g.items.map((i) => `<a class="card" href="#/integrative/${i[0]}"><h3>${esc(i[1])}</h3></a>`).join('')}</div>`).join('') +
@@ -239,7 +251,7 @@ const views = {
   },
 
   archive() {
-    const all = Object.values(loadArchive()).sort((a, b) => b.firstSeen - a.firstSeen);
+    const all = Object.values(loadArch()).sort((a, b) => b.firstSeen - a.firstSeen);
     view.innerHTML = `<h1>Archivio scientifico</h1><p class="mute">${all.length} documenti salvati su questo dispositivo (max 300, i più recenti).</p>
       <div class="row"><input type="search" id="af" placeholder="Filtra per titolo o argomento"><select id="al"><option value="">Ogni livello</option>${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></div><div id="list"></div>`;
     const draw = () => {
@@ -303,7 +315,7 @@ const DUE = { open: 0, daily: 864e5, weekly: 6048e5 };
 async function checkFollowed(force) {
   const topics = store.get('topics', []);
   const last = store.get('topicChecks', {});
-  const archive = loadArchive();
+  const archive = loadArch();
   const found = [];
   for (const t of topics) {
     if (!force && Date.now() - (last[t.topic] || 0) < DUE[t.freq]) continue;
@@ -364,7 +376,7 @@ function route() {
   const [, name = 'home', id] = path.split('/');
   view.onclick = null;
   document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('on', a.getAttribute('href') === `#/${name}`));
-  (views[name] || notFound).call(views, id, new URLSearchParams(qs || ''));
+  (Object.hasOwn(views, name) ? views[name] : notFound).call(views, id, new URLSearchParams(qs || ''));
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
@@ -386,9 +398,27 @@ route();
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
+// Feed giornaliero prodotto dalla GitHub Action (se presente): importato nell'archivio locale.
+async function loadFeed() {
+  try {
+    const res = await fetch('data/radar.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const feed = await res.json();
+    const meta = store.get('feedMeta');
+    if (meta?.generatedAt === feed.generatedAt) return;
+    const archive = loadArch();
+    const imported = importFeed(archive, feed);
+    saveArchive(archive);
+    store.set('feedMeta', { generatedAt: feed.generatedAt, imported, sourcesChecked: feed.sourcesChecked, sourcesDown: feed.sourcesDown, analyzed: feed.analyzed, newCount: feed.newCount });
+    if (!store.get('lastScan')) store.set('lastScan', { at: Date.parse(feed.generatedAt), sourcesChecked: feed.sourcesChecked, sourcesDown: (feed.sourcesDown || []).map((id) => ({ id, error: 'non raggiungibile nell’ultima scansione del server' })), newCount: feed.newCount, analyzed: feed.analyzed, topics: ['scansione giornaliera del server'] });
+    if (location.hash === '' || location.hash === '#/home') route();
+  } catch { /* feed non disponibile: l'app funziona comunque con la scansione locale */ }
+}
+
 // Scansione automatica al massimo una volta ogni 24 ore, più il controllo degli argomenti seguiti.
 (async () => {
   if (!navigator.onLine) return;
+  await loadFeed();
   const scan = store.get('lastScan');
   if (!scan || Date.now() - scan.at > 864e5) { await doScan(); if (location.hash === '' || location.hash === '#/home') route(); }
   const n = await checkFollowed(false);

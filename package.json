@@ -5,7 +5,8 @@
   "type": "module",
   "description": "OncoRadar: ricerca, informazione e monitoraggio della letteratura oncologica",
   "scripts": {
-    "test": "node --test test/run.mjs",
+    "test": "node --test test/run.mjs test/feed.mjs",
+    "scan": "node scripts/scan.mjs",
     "start": "python3 -m http.server 8080"
   }
 }
