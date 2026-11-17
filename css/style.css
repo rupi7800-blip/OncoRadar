@@ -1,0 +1,40 @@
+:root{--bg:#f6f8f8;--card:#fff;--ink:#14232b;--mute:#587079;--line:#dbe4e6;--brand:#0f766e;--brand-ink:#fff;--warn:#fff4e0;--warn-ink:#7a4a00;--bad:#fde8e8;--bad-ink:#8a1c1c;--ok:#e3f5ee;--ok-ink:#0b5a3e}
+:root[data-theme=dark]{--bg:#0e171b;--card:#16242a;--ink:#e6eff1;--mute:#9bb2b9;--line:#26383f;--brand:#2dd4bf;--brand-ink:#05211e;--warn:#3a2c10;--warn-ink:#ffd9a0;--bad:#3a1818;--bad-ink:#ffb4b4;--ok:#10342a;--ok-ink:#9be8c7}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e171b;--card:#16242a;--ink:#e6eff1;--mute:#9bb2b9;--line:#26383f;--brand:#2dd4bf;--brand-ink:#05211e;--warn:#3a2c10;--warn-ink:#ffd9a0;--bad:#3a1818;--bad-ink:#ffb4b4;--ok:#10342a;--ok-ink:#9be8c7}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--brand)}
+.top{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+.brand{font-weight:700;font-size:1.2rem;text-decoration:none;color:var(--ink)}.logo{color:var(--brand)}
+.tools button{margin-left:6px}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+button.primary,.btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
+button:disabled{opacity:.55;cursor:wait}
+.nav{display:flex;gap:6px;overflow-x:auto;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--line);scrollbar-width:thin}
+.nav a{white-space:nowrap;padding:6px 12px;border-radius:999px;text-decoration:none;color:var(--ink);border:1px solid var(--line);font-size:.92rem}
+.nav a.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.banner{margin:0;padding:8px 16px;background:var(--warn);color:var(--warn-ink);font-size:.85rem}
+main{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:.2em 0 .5em}h2{font-size:1.15rem;margin:1.3em 0 .5em}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+a.card{display:block;text-decoration:none;color:inherit}a.card:hover{border-color:var(--brand)}
+.card h3{margin:0 0 .3em;font-size:1.02rem}.mute{color:var(--mute);font-size:.9rem}
+.stats{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}.stat b{display:block;font-size:1.5rem}
+.badge{display:inline-block;font-size:.75rem;padding:2px 8px;border-radius:999px;border:1px solid var(--line);margin:2px 4px 2px 0}
+.badge.l6,.badge.l5{background:var(--ok);color:var(--ok-ink)}.badge.l4,.badge.l3,.badge.l2{background:var(--warn);color:var(--warn-ink)}
+.badge.l1,.badge.l0{background:var(--bad);color:var(--bad-ink)}.badge.pre{background:var(--bad);color:var(--bad-ink)}
+.rec{margin:0 0 12px}.rec h3 a{color:var(--ink);text-decoration:none}.rec h3 a:hover{text-decoration:underline}
+.rec details{margin-top:6px}.rec summary{cursor:pointer;color:var(--brand)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+input,select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);min-width:0}
+input[type=search],input[type=text]{flex:1;min-width:160px}
+.err{background:var(--bad);color:var(--bad-ink);padding:8px 12px;border-radius:8px;margin:8px 0;font-size:.9rem}
+.note{background:var(--warn);color:var(--warn-ink);padding:8px 12px;border-radius:8px;margin:8px 0;font-size:.9rem}
+.okbox{background:var(--ok);color:var(--ok-ink);padding:8px 12px;border-radius:8px;margin:8px 0;font-size:.9rem}
+abbr{text-decoration:underline dotted;cursor:help}
+table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.foot{max-width:1000px;margin:20px auto;padding:0 16px 30px;color:var(--mute);font-size:.8rem}
+.star{border:none;background:none;font-size:1.1rem;padding:0 4px}
+@media (max-width:520px){main{padding:12px}h1{font-size:1.3rem}}

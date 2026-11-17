@@ -1,0 +1,11 @@
+{
+  "name": "oncoradar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OncoRadar: ricerca, informazione e monitoraggio della letteratura oncologica",
+  "scripts": {
+    "test": "node --test test/run.mjs",
+    "start": "python3 -m http.server 8080"
+  }
+}

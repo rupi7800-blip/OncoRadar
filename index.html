@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OncoRadar</title>
+<meta name="description" content="Piattaforma di ricerca, informazione e monitoraggio della letteratura oncologica.">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/home"><span class="logo" aria-hidden="true">◎</span> OncoRadar</a>
+  <div class="tools">
+    <button id="modeBtn" type="button" title="Modalità di lettura">Semplice</button>
+    <button id="themeBtn" type="button" title="Tema chiaro/scuro" aria-label="Cambia tema">☾</button>
+  </div>
+</header>
+<nav id="nav" class="nav" aria-label="Sezioni"></nav>
+<p class="banner" id="banner"></p>
+<main id="view" tabindex="-1"></main>
+<footer class="foot">OncoRadar · dati dalle fonti pubbliche indicate in “Fonti”. Classificazioni automatiche e orientative.</footer>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
