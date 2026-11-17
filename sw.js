@@ -1,7 +1,8 @@
 // Service worker: salva in cache solo il guscio dell'app. Le API scientifiche vanno sempre in rete.
-const CACHE = 'oncoradar-shell-v1';
+const CACHE = 'oncoradar-shell-v2';
 const SHELL = ['./', 'index.html', 'css/style.css', 'icon.svg', 'manifest.webmanifest',
-  'js/app.js', 'js/store.js', 'js/sources.js', 'js/connectors.js', 'js/classify.js', 'js/radar.js', 'js/content.js'];
+  'js/app.js', 'js/store.js', 'js/sources.js', 'js/connectors.js', 'js/classify.js', 'js/radar.js', 'js/content.js',
+  'js/atlas-data.js', 'js/feed.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

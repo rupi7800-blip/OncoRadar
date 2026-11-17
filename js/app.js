@@ -4,6 +4,8 @@ import { searchAll, runScan, DEFAULT_TOPICS } from './radar.js';
 import { LEVELS, compare, summarize } from './classify.js';
 import { store, loadArchive, saveArchive } from './store.js';
 import { DISCLAIMER, STUDY, ATLAS, THERAPIES, INTEGRATIVE, INTEGRATIVE_WARNINGS, GLOSSARY } from './content.js';
+import { ATLAS_DETAIL, EPI_LINKS } from './atlas-data.js';
+import { importFeed } from './feed.js';
 
 const $ = (s) => document.querySelector(s);
 const view = $('#view');
@@ -171,9 +173,15 @@ const views = {
     if (id) {
       const t = ATLAS.find((a) => a[0] === id);
       if (!t) return notFound();
+      const d = ATLAS_DETAIL[id];
+      const ul = (a) => `<ul>${a.map((x) => `<li>${gloss(x)}</li>`).join('')}</ul>`;
       view.innerHTML = `<p><a href="#/atlas">← Atlante</a></p><h1>${esc(t[1])}</h1><div class="card"><p>${esc(t[2])}</p>
-        <p class="note">Sottotipi, fattori di rischio, stadiazione, biomarcatori e trattamenti standard di questa scheda saranno compilati dalle linee guida (NCI, ESMO, AIOM) nella fase di studio. Fino ad allora consulta le fonti sotto, che sono aggiornate in tempo reale.</p>
-        <p class="mute">Linee guida e dati ufficiali: <a href="https://www.cancer.gov/" target="_blank" rel="noopener noreferrer">NCI</a> · <a href="https://www.esmo.org/guidelines" target="_blank" rel="noopener noreferrer">ESMO</a> · <a href="https://www.aiom.it/linee-guida-aiom/" target="_blank" rel="noopener noreferrer">AIOM</a> · <a href="https://www.aifa.gov.it/" target="_blank" rel="noopener noreferrer">AIFA</a></p></div>
+        ${d ? `<h2>Organo e tessuti</h2><p>${esc(d.tissue)}</p><h2>Tipologie e sottotipi</h2>${ul(d.subtypes)}<h2>Fattori di rischio noti</h2>${ul(d.risk)}
+        <h2>Biomarcatori e alterazioni associate</h2>${ul(d.bio)}<h2>Diagnosi</h2><p>${gloss(d.dx)}</p><h2>Stadiazione</h2><p>${esc(d.staging)}</p>
+        <h2>Modalità di trattamento (in generale)</h2>${ul(d.tx)}
+        <p class="note">Scheda di orientamento a scopo educativo. La scelta del trattamento dipende da stadio, caratteristiche biologiche e condizioni del paziente: la decide l’équipe oncologica secondo le linee guida aggiornate. Terapie approvate e sperimentali sono distinte nella sezione “Terapie e cure”.</p>` : ''}
+        <h2>Epidemiologia e prognosi</h2><p class="mute">I dati cambiano nel tempo e per sottogruppo: consulta le fonti aggiornate. ${EPI_LINKS.map(([n, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(n)}</a>`).join(' · ')}</p>
+        <p class="mute">Linee guida: <a href="https://www.cancer.gov/" target="_blank" rel="noopener noreferrer">NCI</a> · <a href="https://www.esmo.org/guidelines" target="_blank" rel="noopener noreferrer">ESMO</a> · <a href="https://www.aiom.it/linee-guida-aiom/" target="_blank" rel="noopener noreferrer">AIOM</a> · <a href="https://www.aifa.gov.it/" target="_blank" rel="noopener noreferrer">AIFA</a></p></div>
         <h2>Ricerca recente</h2><div id="r1"></div>
         <h2>Revisioni sistematiche e meta-analisi</h2><div id="r2"></div>
         <h2>Studi clinici (ClinicalTrials.gov)</h2><div id="r3"></div>`;
@@ -386,9 +394,27 @@ route();
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
+// Feed giornaliero prodotto dalla GitHub Action (se presente): importato nell'archivio locale.
+async function loadFeed() {
+  try {
+    const res = await fetch('data/radar.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const feed = await res.json();
+    const meta = store.get('feedMeta');
+    if (meta?.generatedAt === feed.generatedAt) return;
+    const archive = loadArchive();
+    const imported = importFeed(archive, feed);
+    saveArchive(archive);
+    store.set('feedMeta', { generatedAt: feed.generatedAt, imported, sourcesChecked: feed.sourcesChecked, sourcesDown: feed.sourcesDown, analyzed: feed.analyzed, newCount: feed.newCount });
+    if (!store.get('lastScan')) store.set('lastScan', { at: Date.parse(feed.generatedAt), sourcesChecked: feed.sourcesChecked, sourcesDown: (feed.sourcesDown || []).map((id) => ({ id, error: 'non raggiungibile nell’ultima scansione del server' })), newCount: feed.newCount, analyzed: feed.analyzed, topics: ['scansione giornaliera del server'] });
+    if (location.hash === '' || location.hash === '#/home') route();
+  } catch { /* feed non disponibile: l'app funziona comunque con la scansione locale */ }
+}
+
 // Scansione automatica al massimo una volta ogni 24 ore, più il controllo degli argomenti seguiti.
 (async () => {
   if (!navigator.onLine) return;
+  await loadFeed();
   const scan = store.get('lastScan');
   if (!scan || Date.now() - scan.at > 864e5) { await doScan(); if (location.hash === '' || location.hash === '#/home') route(); }
   const n = await checkFollowed(false);
