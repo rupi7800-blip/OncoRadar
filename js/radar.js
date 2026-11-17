@@ -29,7 +29,7 @@ export function dedupe(records) {
     keep.authors = keep.authors?.length ? keep.authors : prev.authors;
     keep.affiliations = keep.affiliations?.length ? keep.affiliations : prev.affiliations?.length ? prev.affiliations : r.affiliations;
     keep.pubTypes = [...new Set([...(prev.pubTypes || []), ...(r.pubTypes || [])])];
-    keep.isPreprint = prev.isPreprint && r.isPreprint;
+    keep.isPreprint = Boolean(prev.isPreprint || r.isPreprint); // prudenza: se una fonte lo dà come preprint, resta segnalato
     keep.funding = [...new Set([...(prev.funding || []), ...(r.funding || [])])];
     map.set(key, keep);
   }

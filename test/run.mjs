@@ -183,3 +183,38 @@ test('runScan: una fonte che fallisce solo su un argomento resta operativa; anal
   assert.deepEqual(s.sourcesDown, []);
   assert.equal(s.analyzed, 1); // lo stesso documento trovato in 2 argomenti conta una volta
 });
+
+// ---- Regressioni dalla revisione finale ----
+test('classify: "phase II enzymes" in cell lines è preclinico, non fase II', () => {
+  const c = classify(rec({ title: 'Sulforaphane induces phase II detoxifying enzymes in cell lines', abstract: 'In vitro, sulforaphane induces phase II detoxifying enzymes in cultured cells.' }));
+  assert.equal(c.level, 'preclinica');
+  assert.doesNotMatch(c.design, /fase/);
+});
+
+test('classify: "cohort of mice" è animale, non osservazionale', () => {
+  const c = classify(rec({ abstract: 'A cohort of mice bearing xenograft tumors was treated.' }));
+  assert.equal(c.level, 'preclinica');
+  assert.match(c.design, /animale/);
+});
+
+test('classify: una vera fase II con pazienti resta clinica', () => {
+  const c = classify(rec({ title: 'A phase II trial of X', abstract: 'In this phase II trial, patients were enrolled.' }));
+  assert.match(c.design, /fase II/);
+  assert.equal(c.level, 'clinica_preliminare');
+});
+
+test('PubMed: il tipo "Preprint" viene riconosciuto', async () => {
+  const f = mockFetch([
+    ['esearch', { esearchresult: { idlist: ['7'] } }],
+    ['esummary', { result: { 7: { uid: '7', title: 'NIH preprint', authors: [], pubtype: ['Preprint'], pubdate: '2026' } } }],
+  ]);
+  assert.equal((await searchPubMed('x', { fetchImpl: f }))[0].isPreprint, true);
+});
+
+test('dedupe: se una fonte lo segnala preprint, resta preprint', () => {
+  const out = dedupe([
+    { title: 'P', doi: '10.7/pp', isPreprint: false, sourceName: 'PubMed' },
+    { title: 'P', doi: '10.7/pp', isPreprint: true, sourceName: 'Europe PMC' },
+  ]);
+  assert.equal(out[0].isPreprint, true);
+});

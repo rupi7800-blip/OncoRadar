@@ -22,13 +22,21 @@ export function classify(rec) {
   let design = 'Non determinato';
   let level = 'insufficiente';
 
-  const phase = (types + ' ' + text).match(/phase\s*(iv|iii|ii|i|4|3|2|1)(?!\w)(?:\s*\/\s*(?:iv|iii|ii|i|[1-4]))?/i);
+  // La fase si riconosce solo dai tipi di pubblicazione o da "phase X" seguito da trial/study
+  // (evita falsi positivi come "phase II enzymes" negli studi di laboratorio).
+  const phaseRe = /phase\s*(iv|iii|ii|i|[1-4])(?![\w])/i;
+  const phaseTextRe = /phase\s*(iv|iii|ii|i|[1-4])(?:\s*\/\s*(?:iv|iii|ii|i|[1-4]))?(?:\s+\w+){0,2}\s+(?:trial|trials|study|studies|clinical)/i;
+  const phase = types.match(phaseRe) || text.match(phaseTextRe);
   const phaseNum = phase ? { iv: 4, iii: 3, ii: 2, i: 1 }[phase[1].toLowerCase()] || Number(phase[1]) : null;
 
   const animal = has(text, /\b(mice|mouse|murine|xenograft|rats?|zebrafish|in vivo)\b/);
   const vitro = has(text, /\b(in vitro|cell lines?|cultured cells|organoids?)\b/);
   const human = has(text, /\b(patients?|participants|human subjects|cohort of)\b/);
+  const enrolledHumans = has(text, /\b(we enrolled|were enrolled|were recruited|participants were|patients were (?:enrolled|recruited|randomi[sz]ed))\b/);
   const clinicalType = has(types, /clinical trial|randomized|controlled trial|observational|cohort|case-control|case reports?/);
+
+  // Laboratorio/animali senza indicatori di arruolamento di persone: ha la precedenza sui rami clinici generici.
+  const preclinicalOnly = (animal || vitro) && !clinicalType && !enrolledHumans;
 
   // Numero di partecipanti: solo se seguito da un'unità di persone (evita "follow-up of 5 years").
   const sampleMatch =
@@ -59,6 +67,11 @@ export function classify(rec) {
     const solid = phaseNum ? phaseNum >= 3 : sample !== null && sample >= 100;
     level = solid ? 'clinica_significativa' : 'clinica_preliminare';
     reasons.push('Studio randomizzato' + (phaseNum ? `, fase ${roman(phaseNum)}` : solid ? `, campione ≥100 (${sample})` : ', fase e dimensione del campione non verificabili'));
+  } else if (preclinicalOnly) {
+    design = animal ? 'Studio su modello animale' : 'Studio in vitro';
+    level = 'preclinica';
+    reasons.push(animal ? 'Modelli animali' : 'Colture cellulari/laboratorio');
+    flags.push('Non trasferibile automaticamente all’essere umano');
   } else if (phaseNum) {
     design = `Studio clinico di fase ${roman(phaseNum)}`;
     level = phaseNum >= 3 ? 'clinica_significativa' : 'clinica_preliminare';
@@ -75,11 +88,6 @@ export function classify(rec) {
     design = 'Studio osservazionale';
     level = 'clinica_preliminare';
     reasons.push('Osservazionale: mostra associazioni, non causalità');
-  } else if ((animal || vitro) && !clinicalType) {
-    design = animal ? 'Studio su modello animale' : 'Studio in vitro';
-    level = 'preclinica';
-    reasons.push(animal ? 'Modelli animali' : 'Colture cellulari/laboratorio');
-    flags.push('Non trasferibile automaticamente all’essere umano');
   } else if (has(types, /case reports?/)) {
     design = 'Case report';
     level = 'clinica_preliminare';

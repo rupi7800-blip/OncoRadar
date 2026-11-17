@@ -6,6 +6,7 @@ import { store, loadArchive, saveArchive } from './store.js';
 import { DISCLAIMER, STUDY, ATLAS, THERAPIES, INTEGRATIVE, INTEGRATIVE_WARNINGS, GLOSSARY } from './content.js';
 import { ATLAS_DETAIL, EPI_LINKS } from './atlas-data.js';
 import { importFeed } from './feed.js';
+import { classify } from './classify.js';
 
 const $ = (s) => document.querySelector(s);
 const view = $('#view');
@@ -14,11 +15,12 @@ const safeUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : '#');
 const fmtDate = (t) => (t ? new Date(t).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
 let mode = store.get('mode', 'simple'); // 'simple' | 'scientific'
+const loadArch = () => { const a = loadArchive(); for (const r of Object.values(a)) r.cls = classify(r); return a; };
 const cache = new Map(); // key -> record, per i preferiti
 
 const NAV = [
   ['home', 'Home Radar'], ['study', 'Studio della malattia'], ['atlas', 'Atlante dei tumori'], ['therapies', 'Terapie e cure'],
-  ['integrative', 'Medicina integrata'], ['discoveries', 'Nuove scoperte'], ['trials', 'Studi clinici'], ['search', 'Ricerca AI'],
+  ['integrative', 'Medicina integrata'], ['discoveries', 'Nuove scoperte'], ['trials', 'Studi clinici'], ['search', 'Ricerca avanzata'],
   ['archive', 'Archivio scientifico'], ['watch', 'Preferiti e monitoraggio'], ['sources', 'Fonti'],
 ];
 
@@ -41,6 +43,7 @@ function notDemonstrated(r) {
 }
 
 function recCard(r) {
+  r.cls = classify(r); // riclassifica sempre: record salvati con regole precedenti restano corretti
   cache.set(r.key, r);
   const favs = store.get('favs', {});
   const c = r.cls;
@@ -104,7 +107,7 @@ async function searchInto(el, query, opts = {}) {
 
 function trialCard(t) {
   return `<article class="card rec"><h3><a href="${esc(safeUrl(t.url))}" target="_blank" rel="noopener noreferrer">${esc(t.title)}</a></h3>
-    <div><span class="badge">${esc(t.id)}</span><span class="badge">${esc(t.phases.join('/').replace(/PHASE/g, 'Fase ') || 'Fase n.d.')}</span><span class="badge">${esc(t.status)}</span>${t.hasResults ? '<span class="badge l5">Risultati pubblicati</span>' : ''}</div>
+    <div><span class="badge">${esc(t.id)}</span><span class="badge">${esc(t.phases.join('/').replace(/PHASE/g, 'Fase ') || 'Fase n.d.')}</span><span class="badge">${esc(t.status)}</span>${t.hasResults ? '<span class="badge">Risultati pubblicati nel registro</span>' : ''}</div>
     <p class="mute">Sponsor: ${esc(t.sponsor || t.organization || 'n.d.')} · Partecipanti previsti: ${esc(t.enrollment ?? 'n.d.')} · Inizio: ${esc(t.startDate || 'n.d.')} · Ultimo aggiornamento: ${esc(t.lastUpdate || 'n.d.')}</p>
     <p class="mute">Paesi: ${esc(t.countries.slice(0, 8).join(', ') || 'n.d.')}${t.countries.length > 8 ? '…' : ''}</p>
     <details ${mode === 'scientific' ? 'open' : ''}><summary>Dettagli</summary>
@@ -130,7 +133,7 @@ const searchForm = (action, value = '', extra = '') => `<form class="row" data-f
 const views = {
   async home() {
     const scan = store.get('lastScan');
-    const arch = Object.values(loadArchive()).sort((a, b) => b.firstSeen - a.firstSeen);
+    const arch = Object.values(loadArch()).sort((a, b) => b.firstSeen - a.firstSeen);
     const down = scan?.sourcesDown || [];
     view.innerHTML = `<h1>Home Radar</h1>
       <div class="stats">
@@ -248,7 +251,7 @@ const views = {
   },
 
   archive() {
-    const all = Object.values(loadArchive()).sort((a, b) => b.firstSeen - a.firstSeen);
+    const all = Object.values(loadArch()).sort((a, b) => b.firstSeen - a.firstSeen);
     view.innerHTML = `<h1>Archivio scientifico</h1><p class="mute">${all.length} documenti salvati su questo dispositivo (max 300, i più recenti).</p>
       <div class="row"><input type="search" id="af" placeholder="Filtra per titolo o argomento"><select id="al"><option value="">Ogni livello</option>${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></div><div id="list"></div>`;
     const draw = () => {
@@ -312,7 +315,7 @@ const DUE = { open: 0, daily: 864e5, weekly: 6048e5 };
 async function checkFollowed(force) {
   const topics = store.get('topics', []);
   const last = store.get('topicChecks', {});
-  const archive = loadArchive();
+  const archive = loadArch();
   const found = [];
   for (const t of topics) {
     if (!force && Date.now() - (last[t.topic] || 0) < DUE[t.freq]) continue;
@@ -403,7 +406,7 @@ async function loadFeed() {
     const feed = await res.json();
     const meta = store.get('feedMeta');
     if (meta?.generatedAt === feed.generatedAt) return;
-    const archive = loadArchive();
+    const archive = loadArch();
     const imported = importFeed(archive, feed);
     saveArchive(archive);
     store.set('feedMeta', { generatedAt: feed.generatedAt, imported, sourcesChecked: feed.sourcesChecked, sourcesDown: feed.sourcesDown, analyzed: feed.analyzed, newCount: feed.newCount });
