@@ -71,7 +71,7 @@ export function classify(rec) {
   } else if (preclinicalOnly) {
     design = animal ? 'Studio su modello animale' : vitro ? 'Studio in vitro' : 'Sintesi di studi preclinici';
     level = 'preclinica';
-    reasons.push(animal ? 'Modelli animali' : 'Colture cellulari/laboratorio');
+    reasons.push(animal ? 'Modelli animali' : vitro ? 'Colture cellulari/laboratorio' : 'Sintesi di studi su animali/laboratorio');
     flags.push('Non trasferibile automaticamente all’essere umano');
   } else if (phaseNum) {
     design = `Studio clinico di fase ${roman(phaseNum)}`;
