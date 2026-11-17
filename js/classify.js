@@ -30,6 +30,12 @@ export function classify(rec) {
   const human = has(text, /\b(patients?|participants|human subjects|cohort of)\b/);
   const clinicalType = has(types, /clinical trial|randomized|controlled trial|observational|cohort|case-control|case reports?/);
 
+  // Numero di partecipanti: solo se seguito da un'unità di persone (evita "follow-up of 5 years").
+  const sampleMatch =
+    text.match(/\bn\s*=\s*(\d[\d,]*)\b/) ||
+    text.match(/\b(\d[\d,]*)\s+(?:patients|participants|women|men|subjects|cases|adults|children|individuals)\b/);
+  const sample = sampleMatch ? Number(sampleMatch[1].replace(/,/g, '')) : null;
+
   if (rec.isPreprint) {
     design = 'Preprint (non sottoposto a revisione paritaria)';
     flags.push('Preprint non revisionato');
@@ -49,8 +55,10 @@ export function classify(rec) {
     reasons.push('Linee guida / consenso di esperti');
   } else if (has(types, /randomized controlled trial/) || has(text, /\brandomi[sz]ed\b.*\b(trial|study)\b/)) {
     design = phaseNum ? `Studio clinico randomizzato di fase ${roman(phaseNum)}` : 'Studio clinico randomizzato';
-    level = phaseNum === 3 || phaseNum === 4 || !phaseNum ? 'clinica_significativa' : 'clinica_preliminare';
-    reasons.push('Studio randomizzato' + (phaseNum ? `, fase ${roman(phaseNum)}` : ''));
+    // Senza fase dichiarata si considera "significativa" solo con un campione ampio (≥100 persone).
+    const solid = phaseNum ? phaseNum >= 3 : sample !== null && sample >= 100;
+    level = solid ? 'clinica_significativa' : 'clinica_preliminare';
+    reasons.push('Studio randomizzato' + (phaseNum ? `, fase ${roman(phaseNum)}` : solid ? `, campione ≥100 (${sample})` : ', fase e dimensione del campione non verificabili'));
   } else if (phaseNum) {
     design = `Studio clinico di fase ${roman(phaseNum)}`;
     level = phaseNum >= 3 ? 'clinica_significativa' : 'clinica_preliminare';
@@ -105,7 +113,6 @@ export function classify(rec) {
   }
   if (level === 'insufficiente') reasons.push('Nessun indicatore chiaro di disegno dello studio');
 
-  const sample = text.match(/\b(?:n\s*=\s*|of\s+|enrolled\s+|included\s+)(\d{1,6})\s*(?:patients|participants|women|men|subjects|cases)?/);
   const funding = (rec.funding || []).length ? rec.funding : null;
   const coi = has(text, /conflicts? of interest|competing interests?/) ? 'Menzionati nell’abstract' : 'Non verificabili dai metadati';
 
@@ -115,7 +122,7 @@ export function classify(rec) {
     levelLabel: LEVELS[level].label,
     reasons,
     flags,
-    sample: sample ? Number(sample[1]) : null,
+    sample,
     funding,
     conflictsOfInterest: coi,
     preclinical: level === 'preclinica',

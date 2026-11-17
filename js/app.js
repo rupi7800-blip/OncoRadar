@@ -105,7 +105,7 @@ async function searchInto(el, query, opts = {}) {
 function trialCard(t) {
   return `<article class="card rec"><h3><a href="${esc(safeUrl(t.url))}" target="_blank" rel="noopener noreferrer">${esc(t.title)}</a></h3>
     <div><span class="badge">${esc(t.id)}</span><span class="badge">${esc(t.phases.join('/').replace(/PHASE/g, 'Fase ') || 'Fase n.d.')}</span><span class="badge">${esc(t.status)}</span>${t.hasResults ? '<span class="badge l5">Risultati pubblicati</span>' : ''}</div>
-    <p class="mute">Sponsor: ${esc(t.sponsor || t.organization || 'n.d.')} · Partecipanti previsti: ${t.enrollment ?? 'n.d.'} · Inizio: ${esc(t.startDate || 'n.d.')} · Ultimo aggiornamento: ${esc(t.lastUpdate || 'n.d.')}</p>
+    <p class="mute">Sponsor: ${esc(t.sponsor || t.organization || 'n.d.')} · Partecipanti previsti: ${esc(t.enrollment ?? 'n.d.')} · Inizio: ${esc(t.startDate || 'n.d.')} · Ultimo aggiornamento: ${esc(t.lastUpdate || 'n.d.')}</p>
     <p class="mute">Paesi: ${esc(t.countries.slice(0, 8).join(', ') || 'n.d.')}${t.countries.length > 8 ? '…' : ''}</p>
     <details ${mode === 'scientific' ? 'open' : ''}><summary>Dettagli</summary>
       <p><b>Condizioni:</b> ${esc(t.conditions.join(', ') || 'n.d.')}</p><p><b>Trattamento studiato:</b> ${esc(t.interventions.join(', ') || 'n.d.')}</p>
@@ -135,10 +135,10 @@ const views = {
     view.innerHTML = `<h1>Home Radar</h1>
       <div class="stats">
         <div class="stat"><span class="mute">Ultima scansione</span><b style="font-size:1rem">${fmtDate(scan?.at)}</b></div>
-        <div class="stat"><span class="mute">Fonti controllate (ok)</span><b>${scan ? scan.sourcesChecked : '—'}</b></div>
-        <div class="stat"><span class="mute">Nuove pubblicazioni</span><b>${scan ? scan.newCount : '—'}</b></div>
-        <div class="stat"><span class="mute">Documenti analizzati</span><b>${scan ? scan.analyzed : '—'}</b></div>
-        <div class="stat"><span class="mute">Fonti non disponibili</span><b>${scan ? down.length : '—'}</b></div>
+        <div class="stat"><span class="mute">Fonti controllate (ok)</span><b>${scan ? esc(scan.sourcesChecked) : '—'}</b></div>
+        <div class="stat"><span class="mute">Nuove pubblicazioni</span><b>${scan ? esc(scan.newCount) : '—'}</b></div>
+        <div class="stat"><span class="mute">Documenti analizzati</span><b>${scan ? esc(scan.analyzed) : '—'}</b></div>
+        <div class="stat"><span class="mute">Fonti non disponibili</span><b>${scan ? esc(down.length) : '—'}</b></div>
       </div>
       <p class="mute">Valori reali registrati dall’ultima scansione${scan ? ` (argomenti: ${esc(scan.topics.join(', '))})` : ' — nessuna scansione ancora eseguita'}. ${down.length ? 'Non raggiungibili: ' + esc(down.map((d) => d.id).join(', ')) : ''}</p>
       <div class="row"><button class="primary" id="scanBtn">Aggiorna radar ora</button><span id="scanMsg" class="mute"></span></div>
@@ -216,12 +216,13 @@ const views = {
       view.innerHTML = `<p><a href="#/integrative">← Medicina integrata</a></p><h1>${esc(it[1])}</h1>${warn}
         <p class="mute">Per ogni voce OncoRadar mostra cosa è stato realmente studiato. Dosi, biodisponibilità, tossicità e interazioni vanno letti nei singoli studi (modalità scientifica) e discussi con l’oncologo.</p>
         <h2>Cosa dice la letteratura</h2><div id="res"></div>`;
-      searchInto($('#res'), it[2], { limit: 20 }).then((r) => {
-        if (!r) return;
+      const resEl = $('#res');
+      searchInto(resEl, it[2], { limit: 20 }).then((r) => {
+        if (!r || !resEl.isConnected) return; // l'utente può aver cambiato pagina nel frattempo
         const pre = r.records.filter((x) => x.cls.preclinical).length;
         const clin = r.records.filter((x) => LEVELS[x.cls.level].rank >= LEVELS.clinica_preliminare.rank).length;
-        $('#res').insertAdjacentHTML('afterbegin', `<p class="okbox">Tra i ${r.records.length} documenti più recenti: <b>${clin}</b> con dati sull’uomo (di qualunque solidità), <b>${pre}</b> solo preclinici. ${clin === 0 ? 'Nessuna evidenza sull’uomo emersa in questa ricerca: non significa che l’effetto sia escluso, ma non è dimostrato.' : ''}</p>`);
-      });
+        resEl.insertAdjacentHTML('afterbegin', `<p class="okbox">Tra i ${r.records.length} documenti più recenti: <b>${clin}</b> con dati sull’uomo (di qualunque solidità), <b>${pre}</b> solo preclinici. ${clin === 0 ? 'Nessuna evidenza sull’uomo emersa in questa ricerca: non significa che l’effetto sia escluso, ma non è dimostrato.' : ''}</p>`);
+      }).catch(() => {});
       return;
     }
     view.innerHTML = `<h1>Medicina integrata</h1>${warn}` + INTEGRATIVE.map((g) => `<h2>${g.group}</h2><div class="grid">${g.items.map((i) => `<a class="card" href="#/integrative/${i[0]}"><h3>${esc(i[1])}</h3></a>`).join('')}</div>`).join('') +
@@ -372,7 +373,7 @@ function route() {
   const [, name = 'home', id] = path.split('/');
   view.onclick = null;
   document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('on', a.getAttribute('href') === `#/${name}`));
-  (views[name] || notFound).call(views, id, new URLSearchParams(qs || ''));
+  (Object.hasOwn(views, name) ? views[name] : notFound).call(views, id, new URLSearchParams(qs || ''));
   view.focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }

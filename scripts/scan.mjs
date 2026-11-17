@@ -16,7 +16,7 @@ const topics = [...new Set([...DEFAULT_TOPICS, ...ATLAS.map((a) => a[3])])];
 const statuses = {};
 const down = new Set();
 const fresh = [];
-let analyzed = 0;
+const uniqueKeys = new Set();
 
 for (const topic of topics) {
   const { records, statuses: st } = await searchAll(topic, { limit: 10 });
@@ -25,7 +25,7 @@ for (const topic of topics) {
     if (s.status === 'ok') { p.ok++; p.count += s.count; } else { p.errors++; p.lastError = s.error; }
     statuses[id] = p;
   }
-  for (const r of records) { analyzed++; fresh.push(slim({ ...r, topic })); }
+  for (const r of records) { uniqueKeys.add(r.key); fresh.push(slim({ ...r, topic })); }
   await sleep(400); // cortesia verso le API (NCBI: max ~3 richieste/s senza chiave)
 }
 
@@ -35,7 +35,7 @@ const { records, added } = mergeFeed(prev, fresh);
 const out = {
   generatedAt: new Date().toISOString(),
   topics: topics.length,
-  analyzed,
+  analyzed: uniqueKeys.size,
   newCount: added,
   sourcesChecked: Object.values(statuses).filter((s) => s.ok > 0).length,
   sourcesDown: [...down],
